@@ -7,8 +7,8 @@ class client:
     batch_size = 32
 
 
-    def __init__(self):
-        self.local_model = Net()
+    def __init__(self, retrieve_history=True, params=None):
+        self.local_model = Net(retrieve_history = retrieve_history, params = params)
         return
 
 
@@ -16,6 +16,6 @@ class client:
         return
 
     def compute_gradient(self):
-        return
+        return self.local_model.train_single_batch()
 
 
