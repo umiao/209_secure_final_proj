@@ -15,22 +15,25 @@ def partition(data_obj, setting, nums):
 
     ret_data = None
     ret_targets = []
-    keep_prob = nums / 60000
+    max_ratio = max(setting)
+    amplify_r = max_ratio / 1
+    # keep_prob = nums / 60000
 
     for i in range(len(targets)):
-        if random.random() < keep_prob:
-            c = targets[i]
-            if random.random() < setting[c]:
-                ret_targets.append(targets[i])
-                if ret_data is None:
-                    ret_data = data[i, :, :]
-                    ret_data = ret_data[np.newaxis, :]
-                else:
-                    to_append = data[i, :, :]
-                    ret_data = np.concatenate([ret_data, to_append[np.newaxis, :]], axis=0)
+        # if random.random() < keep_prob:  # problematic now
+        c = targets[i]
+        if random.random() < setting[c] / amplify_r:
+            ret_targets.append(targets[i])
+            if ret_data is None:
+                ret_data = data[i, :, :]
+                ret_data = ret_data[np.newaxis, :]
+            else:
+                to_append = data[i, :, :]
+                ret_data = np.concatenate([ret_data, to_append[np.newaxis, :]], axis=0)
                 # preserve this class
-        else:
-            continue
+        if len(ret_targets) >= nums:
+            break
+
     data_obj.data = torch.tensor(ret_data)
     data_obj.targets = torch.tensor(ret_targets)
     return data_obj
