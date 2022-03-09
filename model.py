@@ -114,9 +114,11 @@ class Net(nn.Module):
             loss = F.nll_loss(output, target)
             loss.backward(retain_graph=True)
             self.optimizer.step()
-            computed_gradient = []
+            #computed_gradient = []
+            computed_gradient = {}
             for name, tensor_v in self.named_parameters():
-                computed_gradient.append(tensor_v.grad)
+                #computed_gradient.append(tensor_v.grad)
+                computed_gradient[name] = tensor_v.grad
             return computed_gradient
 
 
