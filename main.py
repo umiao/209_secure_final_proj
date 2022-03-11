@@ -23,63 +23,51 @@ param_dict = {'n_epochs' : 1,
 #generate master model
 Master = Net(params = param_dict)
 # network.test()
-Master.train_single_batch()
-
-should_train = True
-if should_train:
-    for epoch in range(1, Master.n_epochs + 1):
-        print("first train")
-        Master.my_train(epoch)
-        Master.test()
+#.train_single_batch()
+torch.save(Master.state_dict(), './results/model.pth')
+torch.save(Master.optimizer.state_dict(), './results/optimizer.pth')
+master_model_dict = Master.state_dict()
 
 # generate 10 clients
-distribution_lst = [[0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1],
-                    [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1],
-                    [0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8],
-                    ]
+#distribution_lst = [[0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1],
+#                    [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1],
+#                    [0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8],
+#                    ]
+distribution_lst = np.random.dirichlet(np.ones(10),size=10).tolist()
 client_num = 10
 client_lst = []
 #Master = client(params=param_dict, retrieve_history=False)
 
-for c in range(0, client_num):
-    param_dict['class_distribution'] = distribution_lst[c]
-    client_tmp = client(retrieve_history=True, params=param_dict)
-    client_lst.append(client_tmp)
+for epoch in range(0,20):
+    print("epoch:{}/20".format(epoch))
+    # train each client and compute gradient
+    grad_lst = []
+    for client in client_lst:
+        grad_lst.append(client.compute_gradient())
+    print(grad_lst[0])
+    # compute the mean of all clients' gradient
+    client_grad_mean = {}
+    for param_name in grad_lst[0]:
+        sum_tmp = torch.zeros(grad_lst[0][param_name].size())
+        for grad in grad_lst:
+            sum_tmp += grad[param_name]
+        client_grad_mean[param_name] = (sum_tmp / len(grad_lst))
+    #print(client_grad_mean)
+    # update to master's model
+    for param_name in master_model_dict:
+        master_model_dict[param_name] += client_grad_mean[param_name]
+    #print(master_model_dict)
+    # update to client's model
+    for client in client_lst:
+        client.local_model.load_state_dict(master_model_dict)
 
-#master_model_dict = Master.update_to_global_model()
-#for client in client_lst:
-#    client.update_to_local_model(master_model_dict)
-
-# train each client and compute gradient
-grad_lst = []
-for client in client_lst:
-    grad_lst.append(client.compute_gradient())
-
-# compute the mean of all clients' gradient
-client_grad_mean = {}
-for param_name in grad_lst[0]:
-    sum_tmp = torch.zeros(grad_lst[0][param_name].size())
-    for grad in grad_lst:
-        sum_tmp += grad[param_name]
-    client_grad_mean[param_name] = (sum_tmp / len(grad_lst))
-
-# update to master's model
-master_model_dict = Master.state_dict()
-for param_name in master_model_dict:
-    master_model_dict[param_name] += client_grad_mean[param_name]
 Master.load_state_dict(master_model_dict)
+Master.test()
 
-#train again
-should_train = True
-if should_train:
-    for epoch in range(1, Master.n_epochs + 1):
-        print("second train")
-        Master.my_train(epoch)
-        Master.test()
