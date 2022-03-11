@@ -3,6 +3,7 @@ import os
 import torch
 from server import client
 from model import Net
+import numpy as np
 
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 random_seed = 1
