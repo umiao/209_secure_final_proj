@@ -22,7 +22,7 @@ param_dict = {'n_epochs' : 1,
               }
 
 #generate master model
-Master = Net(params = param_dict)
+Master = Net(params = param_dict, retrieve_history=False)
 # network.test()
 #.train_single_batch()
 torch.save(Master.state_dict(), './results/model.pth')
@@ -42,9 +42,16 @@ master_model_dict = Master.state_dict()
 #                    [0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8],
 #                    ]
 distribution_lst = np.random.dirichlet(np.ones(10),size=10).tolist()
+#print(distribution_lst)
 client_num = 10
 client_lst = []
 #Master = client(params=param_dict, retrieve_history=False)
+
+for c in range(0, client_num):
+    param_dict['class_distribution'] = distribution_lst[c]
+    client_tmp = client(retrieve_history=True, params=param_dict)
+    client_lst.append(client_tmp)
+#print(client_lst)
 
 for epoch in range(0,20):
     print("epoch:{}/20".format(epoch))
@@ -52,7 +59,7 @@ for epoch in range(0,20):
     grad_lst = []
     for client in client_lst:
         grad_lst.append(client.compute_gradient())
-    print(grad_lst[0])
+    #print(grad_lst[0])
     # compute the mean of all clients' gradient
     client_grad_mean = {}
     for param_name in grad_lst[0]:
