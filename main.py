@@ -15,7 +15,7 @@ torch.manual_seed(random_seed)
 param_dict = {'n_epochs' : 1,
               'batch_size_train' : 32, # 64的不好 始终保持在32
               'batch_size_test' : 1000,
-              'learning_rate' : 0.001, # 0.01  持续5个batch 然后改为0.001再来5个
+              'learning_rate' : 0.01, # 0.01  持续5个batch 然后改为0.001再来5个
               'momentum' : 0.5,
               'log_interval' : 10,
               'train_set_num' : 6000, # scale of training set possessed by the client
@@ -32,7 +32,7 @@ torch.save(Master.optimizer.state_dict(), './results/optimizer.pth')
 master_model_dict = copy.deepcopy(Master.state_dict())
 
 client_num = 10
-epoch_size = 1000
+epoch_size = 10000
 distribution_lst = np.random.dirichlet(np.ones(10),size=client_num).tolist()
 #print(distribution_lst)
 client_lst = []
@@ -47,7 +47,7 @@ for c in range(0, client_num):
 Master.test()
 
 for epoch in range(0, epoch_size):
-    print("epoch:{}/20".format(epoch))
+    # print("epoch:{}/20".format(epoch))
     # train each client and compute gradient
     grad_lst = []
     for client in client_lst:
@@ -72,5 +72,6 @@ for epoch in range(0, epoch_size):
         client.local_model.load_state_dict(master_model_dict)
 
     Master.load_state_dict(master_model_dict)
-    Master.test()
-torch.save(Master.state_dict(), './results/model.pth')
+    if epoch % 20 == 0:
+        Master.test()
+        torch.save(Master.state_dict(), './results/model.pth')
