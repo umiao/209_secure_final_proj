@@ -4,6 +4,7 @@ import torch
 import torchvision
 import torch.optim as optim
 from partition_dataset import partition
+import copy
 
 class Net(nn.Module):
     n_epochs = 5
@@ -111,14 +112,19 @@ class Net(nn.Module):
         for batch_idx, (data, target) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
             output = self(data)
+            old_named_parameters = {}
+            for name, tensor_v in self.named_parameters():
+                old_named_parameters[name] = copy.deepcopy(tensor_v)
+
             loss = F.nll_loss(output, target)
-            loss.backward(retain_graph=True)
+            # loss.backward(retain_graph=True)
+            loss.backward()
+            nn.utils.clip_grad_norm(self.parameters(), max_norm=20, norm_type=2)
             self.optimizer.step()
-            #computed_gradient = []
             computed_gradient = {}
             for name, tensor_v in self.named_parameters():
                 #computed_gradient.append(tensor_v.grad)
-                computed_gradient[name] = tensor_v.grad
+                computed_gradient[name] = tensor_v - old_named_parameters[name]
             return computed_gradient
 
 
