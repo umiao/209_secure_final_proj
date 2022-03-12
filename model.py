@@ -7,15 +7,6 @@ from partition_dataset import partition
 import copy
 
 class Net(nn.Module):
-    n_epochs = 5
-    batch_size_train = 32  # 64的不好 始终保持在32
-    batch_size_test = 1000
-    learning_rate = 0.001  # 0.01  持续5个batch 然后改为0.001再来5个
-    momentum = 0.5
-    log_interval = 10
-
-
-
     def __init__(self, retrieve_history=True, params=None):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
@@ -26,9 +17,9 @@ class Net(nn.Module):
 
         if not params:
             self.n_epochs = 5
-            self.batch_size_train = 32  # 64的不好 始终保持在32
+            self.batch_size_train = 32
             self.batch_size_test = 1000
-            self.learning_rate = 0.001  # 0.01  持续5个batch 然后改为0.001再来5个
+            self.learning_rate = 0.001
             self.momentum = 0.5
             self.log_interval = 10
         else:
@@ -48,7 +39,9 @@ class Net(nn.Module):
                                            torchvision.transforms.Normalize(
                                                (0.1307,), (0.3081,))
                                        ]))
-        MNIST_obj = partition(MNIST_obj, self.class_distribution, self.train_set_num)
+        
+        if params:
+            MNIST_obj = partition(MNIST_obj, self.class_distribution, self.train_set_num)
 
         self.train_loader = torch.utils.data.DataLoader(
             MNIST_obj,

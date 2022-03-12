@@ -11,6 +11,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 random_seed = 1
 torch.backends.cudnn.enabled = False
 torch.manual_seed(random_seed)
+np.random.seed(random_seed)
 
 param_dict = {'n_epochs' : 1,
               'batch_size_train' : 32, # 64的不好 始终保持在32
@@ -24,9 +25,7 @@ param_dict = {'n_epochs' : 1,
               }
 
 #generate master model
-Master = Net(params = param_dict, retrieve_history=False)
-# network.test()
-#.train_single_batch()
+Master = Net(params = None, retrieve_history=False)
 torch.save(Master.state_dict(), './results/model.pth')
 torch.save(Master.optimizer.state_dict(), './results/optimizer.pth')
 master_model_dict = copy.deepcopy(Master.state_dict())
@@ -34,25 +33,27 @@ master_model_dict = copy.deepcopy(Master.state_dict())
 client_num = 10
 epoch_size = 10000
 distribution_lst = np.random.dirichlet(np.ones(10),size=client_num).tolist()
-#print(distribution_lst)
+print("# of Clients: %d" % client_num)
+print("# of Epochs: %d" % epoch_size)
+print("Learning rate: %f" % param_dict['learning_rate'])
+#print("Data distribution: ")
+#for i in range(client_num):
+#    print(distribution_lst[i])
 client_lst = []
-#Master = client(params=param_dict, retrieve_history=False)
 
 for c in range(0, client_num):
     param_dict['class_distribution'] = distribution_lst[c]
-    # client_tmp = client(retrieve_history=True, params=param_dict)
-    client_tmp = client(retrieve_history=False, params=param_dict)
+    client_tmp = client(params=param_dict, retrieve_history=False)
     client_lst.append(client_tmp)
 #print(client_lst)
 Master.test()
 
-for epoch in range(0, epoch_size):
-    # print("epoch:{}/20".format(epoch))
+for epoch in range(epoch_size):
     # train each client and compute gradient
     grad_lst = []
     for client in client_lst:
         grad_lst.append(client.compute_gradient())
-    #print(grad_lst[0])
+    #print(grad_lst)
     # compute the mean of all clients' gradient
     client_grad_mean = {}
     for param_name in grad_lst[0]:
@@ -73,5 +74,6 @@ for epoch in range(0, epoch_size):
 
     Master.load_state_dict(master_model_dict)
     if epoch % 20 == 0:
+        print('Epoch: %d/%d' % (epoch, epoch_size))
         Master.test()
         torch.save(Master.state_dict(), './results/model.pth')
