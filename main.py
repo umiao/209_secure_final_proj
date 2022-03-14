@@ -1,4 +1,5 @@
 import os
+from pickle import FALSE
 import torch
 from client import client
 from model import Net
@@ -13,7 +14,7 @@ torch.backends.cudnn.enabled = False
 torch.manual_seed(random_seed)
 np.random.seed(random_seed)
 
-quantization = True
+quantization = False
 low_rank_approximation = True
 
 param_dict = {'n_epochs' : 1,
@@ -38,7 +39,7 @@ torch.save(Master.optimizer.state_dict(), './results/optimizer.pth')
 master_model_dict = copy.deepcopy(Master.state_dict())
 
 client_num = 10
-epoch_size = 500
+epoch_size = 10000
 distribution_lst = np.random.dirichlet(np.ones(10),size=client_num).tolist()
 print("# of Clients: %d" % client_num)
 print("# of Epochs: %d" % epoch_size)
@@ -107,7 +108,7 @@ for epoch in range(epoch_size):
             tmp = master_model_dict[param_name].reshape(new_dim)
             U, S, V = util.low_rank_approximation(tmp)
             new_master_dict[param_name] = {}
-            if quantization:
+            if low_rank_approximation:
                 if quantization:
                     new_master_dict[param_name]['U'], new_master_dict[param_name]['S'], new_master_dict[param_name]['V'] = util.quantization(U), util.quantization(S), util.quantization(V)
                 else:
@@ -116,7 +117,7 @@ for epoch in range(epoch_size):
         else:
             if quantization:
                 master_model_dict[param_name] = util.quantization(master_model_dict[param_name])
-    
+
     # update to client's model
     for client in client_lst:
         if low_rank_approximation:
