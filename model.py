@@ -5,6 +5,7 @@ import torchvision
 import torch.optim as optim
 from partition_dataset import partition
 import copy
+import util
 
 class Net(nn.Module):
     def __init__(self, retrieve_history=True, params=None):
@@ -22,6 +23,7 @@ class Net(nn.Module):
             self.learning_rate = 0.001
             self.momentum = 0.5
             self.log_interval = 10
+            self.quantization = False
         else:
             self.n_epochs = params['n_epochs']
             self.batch_size_train = params['batch_size_train']
@@ -31,6 +33,7 @@ class Net(nn.Module):
             self.log_interval = params['log_interval']
             self.train_set_num = params['train_set_num']
             self.class_distribution = params['class_distribution']
+            self.quantization = params['quantization']
 
 
         MNIST_obj = torchvision.datasets.MNIST('./', train=True, download=True,
@@ -85,6 +88,8 @@ class Net(nn.Module):
         self.train()
         for batch_idx, (data, target) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
+            if self.quantization:
+                data = util.quantization(data)
             output = self(data)
             loss = F.nll_loss(output, target)
             loss.backward()
@@ -104,6 +109,8 @@ class Net(nn.Module):
         self.train()
         for batch_idx, (data, target) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
+            if self.quantization:
+                data = util.quantization(data)
             output = self(data)
             old_named_parameters = {}
             for name, tensor_v in self.named_parameters():

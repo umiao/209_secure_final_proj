@@ -1,17 +1,19 @@
-import matplotlib.pyplot as plt
 import os
 import torch
-from server import client
+from client import client
 from model import Net
 import numpy as np
 import copy
 import torch.nn as nn
+import util
 
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 random_seed = 1
 torch.backends.cudnn.enabled = False
 torch.manual_seed(random_seed)
 np.random.seed(random_seed)
+
+quantization = True
 
 param_dict = {'n_epochs' : 1,
               'batch_size_train' : 32, # 64的不好 始终保持在32
@@ -20,18 +22,22 @@ param_dict = {'n_epochs' : 1,
               'momentum' : 0.5,
               'log_interval' : 10,
               'train_set_num' : 6000, # scale of training set possessed by the client
-              'class_distribution' : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+              'class_distribution' : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
               # the distribution of the samples of each class
+              'quantization' : quantization
               }
 
-#generate master model
+# generate and quantize master model
 Master = Net(params = None, retrieve_history=False)
+if quantization:
+    for param_name in Master.state_dict():
+        Master.state_dict()[param_name] = util.quantization(Master.state_dict()[param_name])
 torch.save(Master.state_dict(), './results/model.pth')
 torch.save(Master.optimizer.state_dict(), './results/optimizer.pth')
 master_model_dict = copy.deepcopy(Master.state_dict())
 
 client_num = 10
-epoch_size = 10000
+epoch_size = 500
 distribution_lst = np.random.dirichlet(np.ones(10),size=client_num).tolist()
 print("# of Clients: %d" % client_num)
 print("# of Epochs: %d" % epoch_size)
@@ -41,7 +47,7 @@ print("Learning rate: %f" % param_dict['learning_rate'])
 #    print(distribution_lst[i])
 client_lst = []
 
-for c in range(0, client_num):
+for c in range(client_num):
     param_dict['class_distribution'] = distribution_lst[c]
     client_tmp = client(params=param_dict, retrieve_history=False)
     client_lst.append(client_tmp)
@@ -49,11 +55,14 @@ for c in range(0, client_num):
 Master.test()
 
 for epoch in range(epoch_size):
-    # train each client and compute gradient
+    # train each client, compute gradient and quantize gradient
     grad_lst = []
     for client in client_lst:
-        grad_lst.append(client.compute_gradient())
-    #print(grad_lst)
+        grad = client.compute_gradient()
+        if quantization:
+            for name in grad:
+                grad[name] = util.quantization(grad[name])
+        grad_lst.append(grad)
     # compute the mean of all clients' gradient
     client_grad_mean = {}
     for param_name in grad_lst[0]:
@@ -67,6 +76,8 @@ for epoch in range(epoch_size):
     for param_name in master_model_dict:
         # master_model_dict[param_name] += client_grad_mean[param_name]
         master_model_dict[param_name] += client_grad_mean[param_name]
+        if quantization:
+            master_model_dict[param_name] = util.quantization(master_model_dict[param_name])
     #print(master_model_dict)
     # update to client's model
     for client in client_lst:
