@@ -1,3 +1,4 @@
+from unittest import result
 import numpy as np
 import torch
 
@@ -38,10 +39,32 @@ def low_rank_approximation(matrix, threshold = 0.99):
     U = U[:,:len(S)]
     V = V[:len(S),:]
     #print(np.prod(matrix.shape),"->",np.prod(U.shape)+np.prod(S.shape)+np.prod(V.shape))
-    return U, S, V
+    reduced_size = np.prod(matrix.shape) - (np.prod(U.shape)+np.prod(S.shape)+np.prod(V.shape))
+    return U, S, V, reduced_size
 
 def reconstruct(U,S,V):
     return U @ torch.diag(S) @ V
+
+def zeroize(data, filter_ratio = 0.1):
+    threshold = torch.min(torch.abs(data)) + (torch.max(torch.abs(data)) - torch.min(torch.abs(data)))*filter_ratio
+    #print(threshold)
+    #print(torch.count_nonzero(data))
+    new_data = torch.zeros(data.shape)
+    result = torch.where(abs(data)>=threshold,data,new_data)
+    #print(torch.count_nonzero(result))
+    return result
+
+def sparse(data):
+    dim = np.prod(data.shape)
+    data = zeroize(data)
+    data = data.to_sparse()
+    new_dim = np.prod(data.coalesce().indices().shape) + np.prod(data.coalesce().values().shape)
+    reduced_size = dim - new_dim
+    return data, reduced_size
+
+def dense(data):
+    result = data.to_dense()
+    return result
 
 if __name__ == "__main__":
     data = torch.rand(size=(2,2,2,2))

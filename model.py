@@ -134,6 +134,8 @@ class Net(nn.Module):
         correct = 0
         with torch.no_grad():
             for data, target in self.test_loader:
+                if self.quantization:
+                    data = util.quantization(data)
                 output = self(data)
                 test_loss += F.nll_loss(output, target, size_average=False).item()
                 pred = output.data.max(1, keepdim=True)[1]
@@ -141,6 +143,6 @@ class Net(nn.Module):
 
         test_loss /= len(self.test_loader.dataset)
         self.test_losses.append(test_loss)
-        print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        print('Test set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
             test_loss, correct, len(self.test_loader.dataset),
             100. * correct / len(self.test_loader.dataset)))
