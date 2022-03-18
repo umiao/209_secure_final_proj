@@ -41,8 +41,19 @@ torch.save(Master.optimizer.state_dict(), './results/optimizer.pth')
 master_model_dict = copy.deepcopy(Master.state_dict())
 
 client_num = 10
-epoch_size = 10000
+epoch_size = 1000
 distribution_lst = np.random.dirichlet(np.ones(10),size=client_num).tolist()
+#distribution_lst = [[0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1, 0.0],
+#                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1, 0.1],
+#                    [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.1],
+#                    [0.1, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8],
+#                    ]
 print("# of Clients: %d" % client_num)
 print("# of Epochs: %d" % epoch_size)
 print("Learning rate: %f" % param_dict['learning_rate'])
@@ -62,12 +73,14 @@ for c in range(client_num):
 Master.test()
 
 overall_communication_reduced_size = 0
+overall_communication_size = 0
 
 for epoch in range(1,epoch_size+1):
     # train each client, compute gradient
     #print("Each client computes gradient")
     grad_lst = []
     total_reduced_size_c2m = 0
+    total_size_c2m = 0
     for client in client_lst:
         grad = client.compute_gradient()
         if low_rank_approximation:
@@ -76,9 +89,10 @@ for epoch in range(1,epoch_size+1):
                 dim = grad[name].shape
                 new_dim = util.turn_to_2D(dim)
                 tmp = grad[name].reshape(new_dim)
-                U, S, V, reduced_size = util.low_rank_approximation(tmp)
+                U, S, V, reduced_size, total_size = util.low_rank_approximation(tmp)
                 new_grad[name] = {}
                 total_reduced_size_c2m += reduced_size
+                total_size_c2m += total_size
                 if quantization:
                     new_grad[name]['U'], new_grad[name]['S'], new_grad[name]['V'] = util.quantization(U), util.quantization(S), util.quantization(V)
                 else:
@@ -91,12 +105,13 @@ for epoch in range(1,epoch_size+1):
                     grad[name] = util.quantization(grad[name])
             if sparse:
                 for name in grad:
-                    grad[name], reduced_size = util.sparse(grad[name])
+                    grad[name], reduced_size, total_size = util.sparse(grad[name])
                     total_reduced_size_c2m += reduced_size
+                    total_size_c2m += total_size
             grad_lst.append(grad)
     #print("    Total reduced size from client to master: %d" % total_reduced_size_c2m)
     overall_communication_reduced_size += total_reduced_size_c2m
-
+    overall_communication_size +=  total_size_c2m
     # compute the mean of all clients' gradient
     #print("Compute the mean of all clients' gradient")
     client_grad_mean = {}
@@ -116,6 +131,7 @@ for epoch in range(1,epoch_size+1):
     # update to master's model
     #print("Update to master model")
     total_reduced_size_m2c = 0
+    total_size_m2c = 0
     if low_rank_approximation:
         new_master_dict = {}
     for param_name in master_model_dict:
@@ -124,9 +140,10 @@ for epoch in range(1,epoch_size+1):
             dim = master_model_dict[param_name].shape
             new_dim = util.turn_to_2D(dim)
             tmp = master_model_dict[param_name].reshape(new_dim)
-            U, S, V, reduced_size = util.low_rank_approximation(tmp)
+            U, S, V, reduced_size, total_size = util.low_rank_approximation(tmp)
             new_master_dict[param_name] = {}
             total_reduced_size_m2c += reduced_size
+            total_size_m2c += total_size
             if quantization:
                 new_master_dict[param_name]['U'], new_master_dict[param_name]['S'], new_master_dict[param_name]['V'] = util.quantization(U), util.quantization(S), util.quantization(V)
             else:
@@ -137,7 +154,7 @@ for epoch in range(1,epoch_size+1):
                 master_model_dict[param_name] = util.quantization(master_model_dict[param_name])
     #print("    Total reduced size from master to client: %d" % total_reduced_size_m2c)
     overall_communication_reduced_size += total_reduced_size_m2c
-
+    overall_communication_size += total_size_m2c
     # update to client's model
     #print("Update to client's model")
     if low_rank_approximation:
@@ -148,8 +165,9 @@ for epoch in range(1,epoch_size+1):
 
     # Test model
     Master.load_state_dict(master_model_dict)
-    if epoch % 20 == 0:
+    if epoch % 250 == 0:
         print('Epoch: %d/%d' % (epoch, epoch_size))
-        print("Overall communication reduced size: %d" % overall_communication_reduced_size)
+        #print("Overall communication reduced size: %d" % overall_communication_reduced_size)
+        #print("Overall communication reduced ratio: %f" % (overall_communication_reduced_size/overall_communication_size))
         Master.test()
         torch.save(Master.state_dict(), './results/model.pth')
